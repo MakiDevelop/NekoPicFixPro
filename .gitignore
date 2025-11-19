@@ -1,0 +1,46 @@
+# Xcode
+.DS_Store
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xcscmblueprint
+
+# Swift Package Manager
+/.build/
+Packages/
+Package.resolved
+
+# CoreML compiled models
+*.mlmodelc
+*.mlmodelc/**
+*.mlmodelc/*
+
+# App bundles
+*.app
+*.ipa
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.swo
+*.tmp
+
+# macOS metadata
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# User-provided models (keep .mlmodel, ignore compiled)
+# If you want to ignore .mlmodel as well, uncomment next line:
+# *.mlmodel
