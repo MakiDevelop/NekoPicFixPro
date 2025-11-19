@@ -3,14 +3,36 @@
 //  NekoPicFixPro
 //
 //  Created by Claude on 2025/11/19.
+//  Updated: 玻璃風格 UI
 //
 
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+/// 圖片儲存格式
+enum ImageExportFormat: String, CaseIterable {
+    case jpeg = "JPEG"
+    case png = "PNG"
+
+    var fileExtension: String {
+        switch self {
+        case .jpeg: return "jpg"
+        case .png: return "png"
+        }
+    }
+
+    var contentType: UTType {
+        switch self {
+        case .jpeg: return .jpeg
+        case .png: return .png
+        }
+    }
+}
+
 struct MainView: View {
     // MARK: - State Properties
+    @StateObject private var service = ImageEnhancementService.shared
     @State private var originalImage: NSImage?
     @State private var enhancedImage: NSImage?
     @State private var isProcessing = false
@@ -18,45 +40,77 @@ struct MainView: View {
     @State private var showingFileImporter = false
     @State private var showingAlert = false
     @State private var originalFileName: String = ""
+    @State private var selectedExportFormat: ImageExportFormat = .jpeg
 
     // MARK: - Body
     var body: some View {
-        VStack(spacing: 0) {
-            // Toolbar
-            toolbarView
-                .padding()
-                .background(Color(NSColor.controlBackgroundColor))
+        ZStack {
+            // 背景玻璃效果
+            VisualEffectBlur(material: .hudWindow, blendingMode: .withinWindow)
+                .ignoresSafeArea()
 
-            Divider()
-
-            // Main Content - Before/After Preview
-            HStack(spacing: 1) {
-                // Before Panel
-                ImagePanel(
-                    title: "Original",
-                    image: originalImage,
-                    isProcessing: false
-                )
+            VStack(spacing: 0) {
+                // 頂部工具列
+                topToolbarView
+                    .glassToolbar()
 
                 Divider()
+                    .opacity(0.3)
 
-                // After Panel
-                ImagePanel(
-                    title: "Enhanced",
-                    image: enhancedImage,
-                    isProcessing: isProcessing
-                )
+                // 模式選擇區
+                modeSelectionView
+                    .padding(.vertical, 16)
+                    .padding(.horizontal, 24)
+                    .background(.regularMaterial)
+
+                Divider()
+                    .opacity(0.3)
+
+                // 主內容區 - Before/After 預覽
+                Group {
+                    if let original = originalImage, let enhanced = enhancedImage, !isProcessing {
+                        // 顯示滑桿比較器（兩張圖片都存在且未處理中）
+                        ZStack(alignment: .topLeading) {
+                            BeforeAfterSliderView(
+                                beforeImage: original,
+                                afterImage: enhanced
+                            )
+
+                            // Before/After 標籤
+                            BeforeAfterLabelOverlay(sliderPosition: 0.5)
+                        }
+                    } else {
+                        // 顯示傳統雙卡片視圖
+                        HStack(spacing: 16) {
+                            // Before Panel
+                            ImagePreviewCard(
+                                title: "Original",
+                                image: originalImage,
+                                isProcessing: false
+                            )
+
+                            // After Panel
+                            ImagePreviewCard(
+                                title: "Enhanced",
+                                image: enhancedImage,
+                                isProcessing: isProcessing
+                            )
+                        }
+                    }
+                }
+                .padding(24)
+
+                Divider()
+                    .opacity(0.3)
+
+                // 底部操作區
+                bottomActionView
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+                    .background(.regularMaterial)
             }
-
-            Divider()
-
-            // Status Bar
-            statusBarView
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(NSColor.controlBackgroundColor))
         }
-        .frame(minWidth: 800, minHeight: 600)
+        .frame(minWidth: 1000, minHeight: 700)
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             handleDrop(providers: providers)
         }
@@ -76,82 +130,150 @@ struct MainView: View {
         }
     }
 
-    // MARK: - Toolbar View
-    private var toolbarView: some View {
-        HStack {
+    // MARK: - Top Toolbar View
+    private var topToolbarView: some View {
+        HStack(spacing: 16) {
+            // App Title
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.linearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                Text("NekoPicFix Pro")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+
+            Spacer()
+
             // Open Button
             Button(action: openImage) {
                 Label("Open Image", systemImage: "folder.fill")
             }
             .keyboardShortcut("o", modifiers: .command)
+            .buttonStyle(.bordered)
+            .controlSize(.large)
 
             Spacer()
-
-            // Enhance Button
-            Button(action: enhanceImage) {
-                Label("Enhance", systemImage: "wand.and.stars")
-            }
-            .disabled(originalImage == nil || isProcessing)
-            .keyboardShortcut("e", modifiers: .command)
-            .buttonStyle(.borderedProminent)
-
-            Spacer()
-
-            // Save Button
-            Button(action: saveImage) {
-                Label("Save As...", systemImage: "square.and.arrow.down.fill")
-            }
-            .disabled(enhancedImage == nil || isProcessing)
-            .keyboardShortcut("s", modifiers: .command)
         }
     }
 
-    // MARK: - Status Bar View
-    private var statusBarView: some View {
-        HStack {
-            if isProcessing {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .frame(width: 16, height: 16)
-                Text("Processing...")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            } else if let error = errorMessage {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                Text(error)
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            } else if enhancedImage != nil {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("Enhancement complete")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            } else if originalImage != nil {
-                Text("Ready to enhance")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-            } else {
-                Text("Open an image to begin")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+    // MARK: - Mode Selection View
+    private var modeSelectionView: some View {
+        VStack(spacing: 12) {
+            Text("選擇強化模式")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 12) {
+                ForEach(EnhancementMode.allCases, id: \.self) { mode in
+                    Button(action: {
+                        service.setMode(mode)
+                    }) {
+                        Text(mode.rawValue)
+                    }
+                    .buttonStyle(ModeCapsuleButtonStyle(
+                        isSelected: service.currentMode == mode,
+                        isAvailable: service.isAvailable(mode)
+                    ))
+                    .disabled(!service.isAvailable(mode))
+                    .help(mode.description)
+                }
             }
+
+            // Current mode description
+            Text(service.currentMode.description)
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.top, 4)
+        }
+    }
+
+    // MARK: - Bottom Action View
+    private var bottomActionView: some View {
+        HStack(spacing: 24) {
+            // Status Info
+            HStack(spacing: 12) {
+                if isProcessing {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .frame(width: 16, height: 16)
+                    Text("處理中...")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else if let error = errorMessage {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                } else if enhancedImage != nil {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("強化完成")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else if originalImage != nil {
+                    Image(systemName: "photo.fill")
+                        .foregroundColor(.blue)
+                    Text("準備強化")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else {
+                    Image(systemName: "arrow.up.doc.fill")
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("開啟圖片以開始")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(minWidth: 200, alignment: .leading)
 
             Spacer()
 
-            // Image dimensions info
-            if let original = originalImage {
-                Text("Original: \(Int(original.size.width))×\(Int(original.size.height))")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+            // Main Enhance Button
+            Button(action: enhanceImage) {
+                Label("強化圖片", systemImage: "wand.and.stars")
             }
+            .buttonStyle(ProminentActionButtonStyle(isEnabled: originalImage != nil && !isProcessing))
+            .disabled(originalImage == nil || isProcessing)
+            .keyboardShortcut("e", modifiers: .command)
 
-            if let enhanced = enhancedImage {
-                Text("Enhanced: \(Int(enhanced.size.width))×\(Int(enhanced.size.height))")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+            Spacer()
+
+            // Export Format & Save
+            HStack(spacing: 12) {
+                // Format Picker
+                HStack(spacing: 8) {
+                    Text("格式:")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+
+                    Picker("", selection: $selectedExportFormat) {
+                        ForEach(ImageExportFormat.allCases, id: \.self) { format in
+                            Text(format.rawValue).tag(format)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 120)
+                    .disabled(enhancedImage == nil || isProcessing)
+                }
+
+                // Save Button
+                Button(action: saveImage) {
+                    Label("Save As...", systemImage: "square.and.arrow.down.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(enhancedImage == nil || isProcessing)
+                .keyboardShortcut("s", modifiers: .command)
             }
+            .frame(minWidth: 200, alignment: .trailing)
         }
     }
 
@@ -163,7 +285,6 @@ struct MainView: View {
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first else { return false }
 
-        // Check if provider can load file URL
         if provider.canLoadObject(ofClass: URL.self) {
             _ = provider.loadObject(ofClass: URL.self) { url, error in
                 if let error = error {
@@ -176,7 +297,6 @@ struct MainView: View {
 
                 guard let url = url else { return }
 
-                // Validate file extension
                 let supportedExtensions = ["jpg", "jpeg", "png", "heic", "heif"]
                 let fileExtension = url.pathExtension.lowercased()
 
@@ -188,7 +308,6 @@ struct MainView: View {
                     return
                 }
 
-                // Load the image on main thread
                 DispatchQueue.main.async {
                     self.loadImage(from: url)
                 }
@@ -212,7 +331,6 @@ struct MainView: View {
     }
 
     private func loadImage(from url: URL) {
-        // Start accessing security-scoped resource
         let didStartAccessing = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -220,31 +338,25 @@ struct MainView: View {
             }
         }
 
-        // Store the original filename for later use when saving
         originalFileName = url.deletingPathExtension().lastPathComponent
 
-        // Try to load the image with better error handling
         do {
-            // Check if file exists
             guard FileManager.default.fileExists(atPath: url.path) else {
                 errorMessage = "File not found: \(url.lastPathComponent)"
                 showingAlert = true
                 return
             }
 
-            // Try to load image data
             let data = try Data(contentsOf: url)
 
-            // Create NSImage from data
             guard let image = NSImage(data: data) else {
                 errorMessage = "Invalid image format or corrupted file"
                 showingAlert = true
                 return
             }
 
-            // Successfully loaded
             originalImage = image
-            enhancedImage = nil // Clear previous enhanced image
+            enhancedImage = nil
             errorMessage = nil
 
             print("✅ Image loaded: \(url.lastPathComponent), size: \(image.size)")
@@ -261,7 +373,6 @@ struct MainView: View {
         isProcessing = true
         errorMessage = nil
 
-        // Use ImageEnhancementService to enhance the image
         ImageEnhancementService.shared.enhanceAsync(original) { result in
             switch result {
             case .success(let enhanced):
@@ -280,33 +391,51 @@ struct MainView: View {
         guard let enhanced = enhancedImage else { return }
 
         let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.jpeg]
+        savePanel.allowedContentTypes = [selectedExportFormat.contentType]
         savePanel.canCreateDirectories = true
         savePanel.isExtensionHidden = false
         savePanel.allowsOtherFileTypes = false
         savePanel.title = "Save Enhanced Image"
 
-        // Set default filename with _neko suffix
         let defaultFileName = originalFileName.isEmpty ? "image" : originalFileName
-        savePanel.nameFieldStringValue = "\(defaultFileName)_neko.jpg"
+        savePanel.nameFieldStringValue = "\(defaultFileName)_neko.\(selectedExportFormat.fileExtension)"
 
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else { return }
 
-            // Convert NSImage to JPEG data
             guard let tiffData = enhanced.tiffRepresentation,
-                  let bitmapImage = NSBitmapImageRep(data: tiffData),
-                  let jpegData = bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else {
-                errorMessage = "Failed to convert image to JPEG"
-                showingAlert = true
+                  let bitmapImage = NSBitmapImageRep(data: tiffData) else {
+                DispatchQueue.main.async { [self] in
+                    self.errorMessage = "Failed to convert image"
+                    self.showingAlert = true
+                }
+                return
+            }
+
+            let imageData: Data?
+            switch self.selectedExportFormat {
+            case .jpeg:
+                imageData = bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
+            case .png:
+                imageData = bitmapImage.representation(using: .png, properties: [:])
+            }
+
+            guard let data = imageData else {
+                DispatchQueue.main.async { [self] in
+                    self.errorMessage = "Failed to convert image to \(self.selectedExportFormat.rawValue)"
+                    self.showingAlert = true
+                }
                 return
             }
 
             do {
-                try jpegData.write(to: url)
+                try data.write(to: url)
+                print("✅ Image saved: \(url.lastPathComponent)")
             } catch {
-                errorMessage = "Failed to save image: \(error.localizedDescription)"
-                showingAlert = true
+                DispatchQueue.main.async { [self] in
+                    self.errorMessage = "Failed to save image: \(error.localizedDescription)"
+                    self.showingAlert = true
+                }
             }
         }
     }
@@ -315,5 +444,5 @@ struct MainView: View {
 // MARK: - Preview
 #Preview {
     MainView()
-        .frame(width: 1000, height: 700)
+        .frame(width: 1200, height: 800)
 }
