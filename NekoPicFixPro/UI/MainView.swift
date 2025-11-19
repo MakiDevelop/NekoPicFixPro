@@ -66,36 +66,20 @@ struct MainView: View {
                 Divider()
                     .opacity(0.3)
 
-                // 主內容區 - Before/After 預覽
-                Group {
+                // 主內容區 - 單一預覽框
+                ZStack {
                     if let original = originalImage, let enhanced = enhancedImage, !isProcessing {
-                        // 顯示滑桿比較器（兩張圖片都存在且未處理中）
-                        ZStack(alignment: .topLeading) {
-                            BeforeAfterSliderView(
-                                beforeImage: original,
-                                afterImage: enhanced
-                            )
-
-                            // Before/After 標籤
-                            BeforeAfterLabelOverlay(sliderPosition: 0.5)
-                        }
+                        // Case B: 已強化 → 顯示 Before/After Slider
+                        BeforeAfterSliderView(
+                            beforeImage: original,
+                            afterImage: enhanced
+                        )
+                    } else if let original = originalImage {
+                        // Case A: 尚未強化 → 顯示單一可縮放圖片
+                        singleImagePreview(image: original, isProcessing: isProcessing)
                     } else {
-                        // 顯示傳統雙卡片視圖
-                        HStack(spacing: 16) {
-                            // Before Panel
-                            ImagePreviewCard(
-                                title: "Original",
-                                image: originalImage,
-                                isProcessing: false
-                            )
-
-                            // After Panel
-                            ImagePreviewCard(
-                                title: "Enhanced",
-                                image: enhancedImage,
-                                isProcessing: isProcessing
-                            )
-                        }
+                        // 空狀態
+                        emptyStateView
                     }
                 }
                 .padding(24)
@@ -116,7 +100,7 @@ struct MainView: View {
         }
         .fileImporter(
             isPresented: $showingFileImporter,
-            allowedContentTypes: [.jpeg, .png, .heic],
+            allowedContentTypes: SupportedImageFormat.allUTTypes,
             allowsMultipleSelection: false
         ) { result in
             handleFileImport(result: result)
@@ -191,6 +175,111 @@ struct MainView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
         }
+    }
+
+    // MARK: - Single Image Preview
+
+    @ViewBuilder
+    private func singleImagePreview(image: NSImage, isProcessing: Bool) -> some View {
+        ZStack {
+            // 玻璃卡片背景
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 8)
+
+            // 可縮放圖片容器
+            ZoomableImageContainer(image: image)
+                .padding(16)
+
+            // 處理中遮罩
+            if isProcessing {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(.ultraThinMaterial)
+
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.3)
+                            .progressViewStyle(.circular)
+
+                        Text("處理中...")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(40)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+
+            // 提示標籤（非處理中時顯示）
+            if !isProcessing {
+                VStack {
+                    HStack {
+                        Text("雙擊重置 • 捏合縮放 • 拖曳移動")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        Capsule()
+                                            .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                                    )
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
+                        Spacer()
+                    }
+                    .padding(.leading, 20)
+                    .padding(.top, 20)
+                    Spacer()
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    // MARK: - Empty State View
+
+    private var emptyStateView: some View {
+        ZStack {
+            // 玻璃卡片背景
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 8)
+
+            // 空狀態內容
+            VStack(spacing: 20) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 64))
+                    .foregroundColor(.secondary.opacity(0.3))
+
+                VStack(spacing: 8) {
+                    Text("拖曳圖片至此")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+
+                    Text("或點擊「Open Image」開啟檔案")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+
+                Text("支援 \(SupportedImageFormat.supportedFormatsString) 格式")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary.opacity(0.7))
+                    .padding(.top, 8)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
     // MARK: - Bottom Action View
@@ -297,12 +386,11 @@ struct MainView: View {
 
                 guard let url = url else { return }
 
-                let supportedExtensions = ["jpg", "jpeg", "png", "heic", "heif"]
                 let fileExtension = url.pathExtension.lowercased()
 
-                guard supportedExtensions.contains(fileExtension) else {
+                guard SupportedImageFormat.allExtensions.contains(fileExtension) else {
                     DispatchQueue.main.async {
-                        self.errorMessage = "Unsupported file format. Please use JPEG, PNG, or HEIC."
+                        self.errorMessage = "不支援的檔案格式。請使用 \(SupportedImageFormat.supportedFormatsString)。"
                         self.showingAlert = true
                     }
                     return
@@ -388,7 +476,14 @@ struct MainView: View {
     }
 
     private func saveImage() {
-        guard let enhanced = enhancedImage else { return }
+        print("🔵 [SAVE] Step 1: saveImage() called")
+
+        guard let enhanced = enhancedImage else {
+            print("🔴 [SAVE] Error: No enhanced image")
+            return
+        }
+
+        print("🔵 [SAVE] Step 2: Enhanced image exists, size: \(enhanced.size)")
 
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [selectedExportFormat.contentType]
@@ -400,44 +495,85 @@ struct MainView: View {
         let defaultFileName = originalFileName.isEmpty ? "image" : originalFileName
         savePanel.nameFieldStringValue = "\(defaultFileName)_neko.\(selectedExportFormat.fileExtension)"
 
+        print("🔵 [SAVE] Step 3: Opening save panel...")
+
         savePanel.begin { response in
-            guard response == .OK, let url = savePanel.url else { return }
+            print("🔵 [SAVE] Step 4: Save panel closed, response: \(response.rawValue)")
 
-            guard let tiffData = enhanced.tiffRepresentation,
-                  let bitmapImage = NSBitmapImageRep(data: tiffData) else {
-                DispatchQueue.main.async { [self] in
-                    self.errorMessage = "Failed to convert image"
-                    self.showingAlert = true
-                }
+            guard response == .OK, let url = savePanel.url else {
+                print("🟡 [SAVE] User cancelled or no URL")
                 return
             }
 
-            let imageData: Data?
-            switch self.selectedExportFormat {
-            case .jpeg:
-                imageData = bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
-            case .png:
-                imageData = bitmapImage.representation(using: .png, properties: [:])
-            }
+            print("🔵 [SAVE] Step 5: Save path: \(url.path)")
+            print("🔵 [SAVE] Step 6: Starting background conversion...")
 
-            guard let data = imageData else {
-                DispatchQueue.main.async { [self] in
-                    self.errorMessage = "Failed to convert image to \(self.selectedExportFormat.rawValue)"
-                    self.showingAlert = true
+            // 在後台線程執行圖片轉換和保存
+            DispatchQueue.global(qos: .userInitiated).async {
+                print("🔵 [SAVE] Step 7: Background thread started")
+
+                // 轉換圖片
+                print("🔵 [SAVE] Step 8: Getting TIFF representation...")
+                guard let tiffData = enhanced.tiffRepresentation else {
+                    print("🔴 [SAVE] Error: Failed to get TIFF representation")
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Failed to convert image (TIFF)"
+                        self.showingAlert = true
+                    }
+                    return
                 }
-                return
-            }
 
-            do {
-                try data.write(to: url)
-                print("✅ Image saved: \(url.lastPathComponent)")
-            } catch {
-                DispatchQueue.main.async { [self] in
-                    self.errorMessage = "Failed to save image: \(error.localizedDescription)"
-                    self.showingAlert = true
+                print("🔵 [SAVE] Step 9: TIFF data size: \(tiffData.count) bytes")
+                print("🔵 [SAVE] Step 10: Creating bitmap image rep...")
+
+                guard let bitmapImage = NSBitmapImageRep(data: tiffData) else {
+                    print("🔴 [SAVE] Error: Failed to create bitmap image rep")
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Failed to convert image (Bitmap)"
+                        self.showingAlert = true
+                    }
+                    return
+                }
+
+                print("🔵 [SAVE] Step 11: Bitmap created, converting to \(self.selectedExportFormat.rawValue)...")
+
+                let imageData: Data?
+                switch self.selectedExportFormat {
+                case .jpeg:
+                    print("🔵 [SAVE] Step 12: Encoding as JPEG...")
+                    imageData = bitmapImage.representation(using: .jpeg, properties: [.compressionFactor: 0.9])
+                case .png:
+                    print("🔵 [SAVE] Step 12: Encoding as PNG...")
+                    imageData = bitmapImage.representation(using: .png, properties: [:])
+                }
+
+                guard let data = imageData else {
+                    print("🔴 [SAVE] Error: Failed to encode image")
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Failed to convert image to \(self.selectedExportFormat.rawValue)"
+                        self.showingAlert = true
+                    }
+                    return
+                }
+
+                print("🔵 [SAVE] Step 13: Encoded data size: \(data.count) bytes")
+                print("🔵 [SAVE] Step 14: Writing to file...")
+
+                // 保存檔案
+                do {
+                    try data.write(to: url)
+                    print("✅ [SAVE] Step 15: SUCCESS! Image saved: \(url.lastPathComponent)")
+                } catch {
+                    print("🔴 [SAVE] Error writing file: \(error.localizedDescription)")
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Failed to save image: \(error.localizedDescription)"
+                        self.showingAlert = true
+                    }
                 }
             }
         }
+
+        print("🔵 [SAVE] Step 3.5: Save panel.begin() returned (async)")
     }
 }
 
