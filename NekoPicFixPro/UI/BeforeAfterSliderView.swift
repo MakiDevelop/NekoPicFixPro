@@ -15,8 +15,10 @@ struct BeforeAfterSliderView: View {
     let afterImage: NSImage
 
     @StateObject private var zoomState = ZoomPanState()
-    @State private var sliderPosition: CGFloat = 0.5
     @State private var isDragging: Bool = false
+
+    // 🎯 優化 7: 滑桿位置記憶（使用 AppStorage 持久化）
+    @AppStorage("beforeAfterSliderPosition") private var sliderPosition: Double = 0.5
 
     // 縮放限制
     private let minScale: CGFloat = 1.0
@@ -63,6 +65,7 @@ struct BeforeAfterSliderView: View {
             Image(nsImage: afterImage)
                 .resizable()
                 .scaledToFit()
+                .drawingGroup()  // 🎯 優化 3: Metal 加速
                 .frame(width: width, height: height)
                 .scaleEffect(zoomState.scale)
                 .offset(zoomState.offset)
@@ -71,6 +74,7 @@ struct BeforeAfterSliderView: View {
             Image(nsImage: beforeImage)
                 .resizable()
                 .scaledToFit()
+                .drawingGroup()  // 🎯 優化 3: Metal 加速
                 .frame(width: width, height: height)
                 .scaleEffect(zoomState.scale)
                 .offset(zoomState.offset)
@@ -170,8 +174,9 @@ struct BeforeAfterSliderView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 isDragging = true
-                let newPosition = value.location.x / width
+                let newPosition = Double(value.location.x / width)
                 withAnimation(.easeInOut(duration: 0.05)) {
+                    // 🎯 優化 7: 自動保存滑桿位置到 AppStorage
                     sliderPosition = min(max(newPosition, 0), 1)
                 }
             }

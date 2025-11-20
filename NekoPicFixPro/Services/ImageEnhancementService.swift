@@ -32,6 +32,54 @@ enum EnhancementMode: String, CaseIterable {
             return "進階使用者使用，畫面較銳利，可能產生 artifacts"
         }
     }
+
+    // 🎯 優化 9: 檔名智慧後綴
+    var filenameSuffix: String {
+        switch self {
+        case .general:
+            return "_general"
+        case .naturalStrong:
+            return "_natural_strong"
+        case .naturalSoft:
+            return "_natural_soft"
+        case .anime:
+            return "_anime"
+        case .experimental:
+            return "_experimental"
+        }
+    }
+
+    // 🎯 優化 17: 模式視覺化 - SF Symbol 圖標
+    var icon: String {
+        switch self {
+        case .general:
+            return "wand.and.stars"
+        case .naturalStrong:
+            return "leaf.fill"
+        case .naturalSoft:
+            return "sparkle"
+        case .anime:
+            return "paintbrush.fill"
+        case .experimental:
+            return "flask.fill"
+        }
+    }
+
+    // 🎯 優化 17: 模式視覺化 - 漸變色彩
+    var gradientColors: (start: String, end: String) {
+        switch self {
+        case .general:
+            return ("#667eea", "#764ba2")  // 藍紫色
+        case .naturalStrong:
+            return ("#11998e", "#38ef7d")  // 綠色
+        case .naturalSoft:
+            return ("#fa709a", "#fee140")  // 粉橘色
+        case .anime:
+            return ("#ee0979", "#ff6a00")  // 紅橘色
+        case .experimental:
+            return ("#8e2de2", "#4a00e0")  // 深紫色
+        }
+    }
 }
 
 /// Service for managing image enhancement operations

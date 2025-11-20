@@ -42,6 +42,7 @@ struct ZoomableImageContainer: View {
                     Image(nsImage: nsImage)
                         .resizable()
                         .scaledToFit()
+                        .drawingGroup()  // 🎯 優化 3: Metal 加速
                         .scaleEffect(state.scale)
                         .offset(state.offset)
                         .gesture(magnificationGesture)
