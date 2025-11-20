@@ -35,6 +35,9 @@ struct MainView: View {
     @StateObject private var service = ImageEnhancementService.shared
     @StateObject private var recentFiles = RecentFiles.shared
     @StateObject private var history = EnhancementHistory()
+    @StateObject private var batchProcessor = BatchProcessor()
+    @StateObject private var memoryMonitor = MemoryMonitor.shared
+
     @State private var originalImage: NSImage?
     @State private var enhancedImage: NSImage?
     @State private var isProcessing = false
@@ -64,6 +67,11 @@ struct MainView: View {
     @State private var showingLargeImageWarning = false
     @State private var pendingLargeImage: (image: NSImage, url: URL)?
     private let maxImageDimension: CGFloat = 8192  // 8K
+
+    // 🎯 優化 18: 批次處理模式
+    @State private var isBatchMode: Bool = false
+    @State private var showingBatchRejectedAlert = false
+    @State private var batchRejectedReasons: [String] = []
 
     // MARK: - Body
     var body: some View {
@@ -106,7 +114,7 @@ struct MainView: View {
         .fileImporter(
             isPresented: $showingFileImporter,
             allowedContentTypes: SupportedImageFormat.allUTTypes,
-            allowsMultipleSelection: false
+            allowsMultipleSelection: isBatchMode
         ) { result in
             handleFileImport(result: result)
         }
@@ -138,6 +146,16 @@ struct MainView: View {
                 let width = Int(pending.image.size.width)
                 let height = Int(pending.image.size.height)
                 Text("此圖片尺寸為 \(width) × \(height) 像素，超過建議的 \(Int(maxImageDimension)) × \(Int(maxImageDimension)) 限制。\n\n處理超大圖片可能導致記憶體不足或效能問題。\n\n是否仍要繼續？")
+            }
+        }
+        // 🎯 優化 18: 批次檔案被拒絕警告
+        .alert("部分檔案無法加入", isPresented: $showingBatchRejectedAlert) {
+            Button("OK") {
+                batchRejectedReasons = []
+            }
+        } message: {
+            if !batchRejectedReasons.isEmpty {
+                Text(batchRejectedReasons.prefix(5).joined(separator: "\n") + (batchRejectedReasons.count > 5 ? "\n... 及其他 \(batchRejectedReasons.count - 5) 個檔案" : ""))
             }
         }
         // 🎯 優化 2: 鍵盤快捷鍵
@@ -260,9 +278,27 @@ struct MainView: View {
                 .fixedSize()
             }
 
+            // 🎯 優化 18: 批次模式切換
+            Picker("", selection: $isBatchMode) {
+                Text("單張模式").tag(false)
+                Text("批次模式").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 160)
+            .onChange(of: isBatchMode) { _, newValue in
+                if newValue && !batchProcessor.items.isEmpty {
+                    // Switching to batch mode - do nothing
+                } else if !newValue {
+                    // Switching to single mode - clear batch queue if empty
+                    if batchProcessor.completedCount == batchProcessor.totalCount {
+                        batchProcessor.clearQueue()
+                    }
+                }
+            }
+
             // Open Image Button
             Button(action: openImage) {
-                Label("Open Image", systemImage: "folder.fill")
+                Label(isBatchMode ? "Add Files" : "Open Image", systemImage: isBatchMode ? "plus.rectangle.on.folder.fill" : "folder.fill")
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
@@ -344,18 +380,23 @@ struct MainView: View {
 
     private var mainPreviewArea: some View {
         ZStack {
-            if let original = originalImage, let enhanced = enhancedImage, !isProcessing {
-                // Case 2: 強化後 → Before/After 分割
-                BeforeAfterSliderView(
-                    beforeImage: original,
-                    afterImage: enhanced
-                )
-            } else if let original = originalImage {
-                // Case 1: 尚未強化 → 單一可縮放預覽
-                singleImagePreview(image: original)
+            if isBatchMode {
+                // 🎯 優化 18: 批次處理介面
+                batchProcessingView
             } else {
-                // 空狀態
-                emptyStateView
+                if let original = originalImage, let enhanced = enhancedImage, !isProcessing {
+                    // Case 2: 強化後 → Before/After 分割
+                    BeforeAfterSliderView(
+                        beforeImage: original,
+                        afterImage: enhanced
+                    )
+                } else if let original = originalImage {
+                    // Case 1: 尚未強化 → 單一可縮放預覽
+                    singleImagePreview(image: original)
+                } else {
+                    // 空狀態
+                    emptyStateView
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -527,6 +568,238 @@ struct MainView: View {
         }
     }
 
+    // MARK: - Batch Processing View
+
+    private var batchProcessingView: some View {
+        VStack(spacing: 0) {
+            // Batch queue list
+            if batchProcessor.items.isEmpty {
+                // Empty state for batch mode
+                VStack(spacing: GlassDesign.Spacing.m) {
+                    Image(systemName: "square.stack.3d.up")
+                        .font(.system(size: 64, weight: .thin))
+                        .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.5))
+
+                    VStack(spacing: GlassDesign.Spacing.xxs) {
+                        Text("拖曳多個圖片至此")
+                            .font(GlassDesign.Typography.title)
+                            .foregroundColor(GlassDesign.Colors.textPrimary)
+
+                        Text("或點擊「Add Files」選擇檔案")
+                            .font(GlassDesign.Typography.label)
+                            .foregroundColor(GlassDesign.Colors.textSecondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("批次處理限制：")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(GlassDesign.Colors.textSecondary)
+
+                        Text("• 最多 30 張圖片")
+                        Text("• 單張最大 8192×8192 像素")
+                        Text("• 自動儲存至原檔案目錄")
+                    }
+                    .font(.system(size: 11))
+                    .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.8))
+                    .padding(.top, GlassDesign.Spacing.xs)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .glassCard()
+                .overlay(
+                    RoundedRectangle(cornerRadius: GlassDesign.CornerRadius.xlarge)
+                        .strokeBorder(
+                            Color.accentColor.opacity(isDropTargeted ? 0.6 : 0),
+                            lineWidth: 3
+                        )
+                        .animation(.easeInOut(duration: 0.2), value: isDropTargeted)
+                )
+            } else {
+                // Batch queue list with items
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(batchProcessor.items) { item in
+                            batchItemRow(item)
+                        }
+                    }
+                    .padding(GlassDesign.Spacing.s)
+                }
+                .glassCard()
+            }
+
+            // Batch controls
+            HStack(spacing: GlassDesign.Spacing.s) {
+                // Memory indicator
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(memoryPressureColor)
+                        .frame(width: 8, height: 8)
+
+                    Text("記憶體: \(Int(memoryMonitor.memoryUsagePercentage))%")
+                        .font(.system(size: 11))
+                        .foregroundColor(GlassDesign.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                // Batch progress
+                if batchProcessor.isProcessing || batchProcessor.isPaused {
+                    ProgressView(value: batchProcessor.totalProgress, total: 1.0)
+                        .progressViewStyle(.linear)
+                        .frame(width: 150)
+
+                    Text("\(batchProcessor.completedCount + batchProcessor.failedCount)/\(batchProcessor.totalCount)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(GlassDesign.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                // Control buttons
+                if batchProcessor.isProcessing {
+                    if batchProcessor.isPaused {
+                        Button(action: {
+                            batchProcessor.resumeProcessing()
+                        }) {
+                            Label("Resume", systemImage: "play.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        Button(action: {
+                            batchProcessor.pauseProcessing()
+                        }) {
+                            Label("Pause", systemImage: "pause.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Button(action: {
+                        batchProcessor.cancelProcessing()
+                    }) {
+                        Label("Cancel", systemImage: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button(action: {
+                        batchProcessor.startProcessing()
+                    }) {
+                        Label("Start Processing", systemImage: "play.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(batchProcessor.items.isEmpty)
+
+                    Button(action: {
+                        batchProcessor.clearQueue()
+                    }) {
+                        Label("Clear", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(batchProcessor.items.isEmpty)
+                }
+            }
+            .padding(GlassDesign.Spacing.s)
+            .background(
+                RoundedRectangle(cornerRadius: GlassDesign.CornerRadius.large)
+                    .fill(.ultraThinMaterial)
+            )
+            .padding(.top, GlassDesign.Spacing.s)
+        }
+    }
+
+    private func batchItemRow(_ item: BatchItem) -> some View {
+        HStack(spacing: 12) {
+            // Status icon
+            ZStack {
+                Circle()
+                    .fill(batchItemStatusColor(item).opacity(0.2))
+                    .frame(width: 32, height: 32)
+
+                Image(systemName: batchItemStatusIcon(item))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(batchItemStatusColor(item))
+            }
+
+            // File info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.filename)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(GlassDesign.Colors.textPrimary)
+                    .lineLimit(1)
+
+                Text(item.statusText)
+                    .font(.system(size: 11))
+                    .foregroundColor(GlassDesign.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            // Progress or action
+            if case .processing = item.status {
+                ProgressView(value: item.progress, total: 1.0)
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.7)
+                    .frame(width: 20, height: 20)
+            } else if case .pending = item.status {
+                Button(action: {
+                    batchProcessor.removeItem(item)
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+    }
+
+    private var memoryPressureColor: Color {
+        switch memoryMonitor.memoryPressure {
+        case .normal:
+            return .green
+        case .warning:
+            return .orange
+        case .critical:
+            return .red
+        }
+    }
+
+    private func batchItemStatusColor(_ item: BatchItem) -> Color {
+        switch item.status {
+        case .pending:
+            return .gray
+        case .processing:
+            return .blue
+        case .completed:
+            return .green
+        case .failed:
+            return .red
+        case .cancelled:
+            return .orange
+        }
+    }
+
+    private func batchItemStatusIcon(_ item: BatchItem) -> String {
+        switch item.status {
+        case .pending:
+            return "clock"
+        case .processing:
+            return "arrow.triangle.2.circlepath"
+        case .completed:
+            return "checkmark"
+        case .failed:
+            return "xmark"
+        case .cancelled:
+            return "slash.circle"
+        }
+    }
+
     // MARK: - Export Controls
 
     private var exportControls: some View {
@@ -594,45 +867,84 @@ struct MainView: View {
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
+        if isBatchMode {
+            // Batch mode: Handle multiple files
+            let group = DispatchGroup()
+            var urls: [URL] = []
 
-        if provider.canLoadObject(ofClass: URL.self) {
-            _ = provider.loadObject(ofClass: URL.self) { url, error in
-                if let error = error {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Drop failed: \(error.localizedDescription)"
-                        self.showingAlert = true
+            for provider in providers {
+                if provider.canLoadObject(ofClass: URL.self) {
+                    group.enter()
+                    _ = provider.loadObject(ofClass: URL.self) { url, error in
+                        defer { group.leave() }
+                        if let url = url {
+                            urls.append(url)
+                        }
                     }
-                    return
-                }
-
-                guard let url = url else { return }
-
-                let fileExtension = url.pathExtension.lowercased()
-
-                guard SupportedImageFormat.allExtensions.contains(fileExtension) else {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "不支援的檔案格式。請使用 \(SupportedImageFormat.supportedFormatsString)。"
-                        self.showingAlert = true
-                    }
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    self.loadImage(from: url)
                 }
             }
-            return true
-        }
 
-        return false
+            group.notify(queue: .main) {
+                let result = self.batchProcessor.addFiles(urls, mode: self.service.currentMode)
+                if !result.rejected.isEmpty {
+                    self.batchRejectedReasons = result.rejected
+                    self.showingBatchRejectedAlert = true
+                }
+            }
+
+            return true
+        } else {
+            // Single mode: Handle one file
+            guard let provider = providers.first else { return false }
+
+            if provider.canLoadObject(ofClass: URL.self) {
+                _ = provider.loadObject(ofClass: URL.self) { url, error in
+                    if let error = error {
+                        DispatchQueue.main.async {
+                            self.errorMessage = "Drop failed: \(error.localizedDescription)"
+                            self.showingAlert = true
+                        }
+                        return
+                    }
+
+                    guard let url = url else { return }
+
+                    let fileExtension = url.pathExtension.lowercased()
+
+                    guard SupportedImageFormat.allExtensions.contains(fileExtension) else {
+                        DispatchQueue.main.async {
+                            self.errorMessage = "不支援的檔案格式。請使用 \(SupportedImageFormat.supportedFormatsString)。"
+                            self.showingAlert = true
+                        }
+                        return
+                    }
+
+                    DispatchQueue.main.async {
+                        self.loadImage(from: url)
+                    }
+                }
+                return true
+            }
+
+            return false
+        }
     }
 
     private func handleFileImport(result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
-            guard let url = urls.first else { return }
-            loadImage(from: url)
+            if isBatchMode {
+                // Batch mode: Add multiple files
+                let result = batchProcessor.addFiles(urls, mode: service.currentMode)
+                if !result.rejected.isEmpty {
+                    batchRejectedReasons = result.rejected
+                    showingBatchRejectedAlert = true
+                }
+            } else {
+                // Single mode: Load one file
+                guard let url = urls.first else { return }
+                loadImage(from: url)
+            }
 
         case .failure(let error):
             errorMessage = "Failed to open file: \(error.localizedDescription)"
