@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct UpgradeProView: View {
     @ObservedObject var appState: AppState
+    @StateObject private var store = StoreKitManager.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var isPurchasing = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
@@ -90,15 +93,33 @@ struct UpgradeProView: View {
 
                 // 按鈕區域
                 VStack(spacing: 12) {
-                    // 升級按鈕（目前是測試用，未來接 IAP）
+                    // 升級按鈕
                     Button(action: {
-                        appState.unlockPro()
-                        dismiss()
+                        Task {
+                            isPurchasing = true
+                            let success = await store.purchase()
+                            isPurchasing = false
+                            if success {
+                                dismiss()
+                            }
+                        }
                     }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "crown.fill")
-                            Text("立即升級 Pro")
-                                .font(.system(size: 16, weight: .semibold))
+                            if isPurchasing || store.isLoading {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "crown.fill")
+                            }
+
+                            if let product = store.proProduct {
+                                Text("\(product.displayPrice) - 立即升級 Pro")
+                                    .font(.system(size: 16, weight: .semibold))
+                            } else {
+                                Text("立即升級 Pro")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
@@ -117,6 +138,23 @@ struct UpgradeProView: View {
                         .shadow(color: Color(hex: "#667eea").opacity(0.4), radius: 12, y: 6)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isPurchasing || store.isLoading)
+
+                    // Restore 按鈕
+                    Button(action: {
+                        Task {
+                            await store.restore()
+                            if store.isProUser {
+                                dismiss()
+                            }
+                        }
+                    }) {
+                        Text("恢復購買")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isPurchasing || store.isLoading)
 
                     // 關閉按鈕
                     Button(action: {
@@ -127,6 +165,28 @@ struct UpgradeProView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+
+                    // 錯誤訊息
+                    if let error = store.errorMessage {
+                        Text(error)
+                            .font(.system(size: 12))
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
+                    }
+
+                    // Debug: 測試解鎖按鈕
+                    #if DEBUG
+                    Button(action: {
+                        appState.unlockPro()
+                        dismiss()
+                    }) {
+                        Text("Debug: 直接解鎖")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                    }
+                    .buttonStyle(.plain)
+                    #endif
                 }
                 .padding(24)
             }
