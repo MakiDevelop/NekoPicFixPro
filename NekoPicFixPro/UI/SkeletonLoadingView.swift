@@ -94,7 +94,7 @@ struct CompactSkeletonView: View {
                 .scaleEffect(1.2)
                 .progressViewStyle(.circular)
 
-            Text("載入中...")
+            Text(L10n.string("status.loading"))
                 .font(GlassDesign.Typography.caption)
                 .foregroundColor(GlassDesign.Colors.textSecondary)
         }

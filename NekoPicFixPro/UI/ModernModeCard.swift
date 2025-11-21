@@ -56,7 +56,7 @@ struct ModernModeCard: View {
                 // 右側文字內容
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(mode.rawValue)
+                        Text(mode.displayName)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(isSelected ? .primary : .primary.opacity(0.8))
 

@@ -63,11 +63,11 @@ class MemoryMonitor: ObservableObject {
     var pressureDescription: String {
         switch memoryPressure {
         case .normal:
-            return "正常"
+            return L10n.string("memory.normal")
         case .warning:
-            return "警告"
+            return L10n.string("memory.warning")
         case .critical:
-            return "危險"
+            return L10n.string("memory.critical")
         }
     }
 

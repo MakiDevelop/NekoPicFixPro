@@ -139,7 +139,7 @@ struct ZoomableImageContainer: View {
             Image(systemName: "photo")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary.opacity(0.3))
-            Text("無圖片")
+            Text(L10n.string("placeholder.no_image"))
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
         }

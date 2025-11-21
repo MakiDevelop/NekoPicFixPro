@@ -37,6 +37,7 @@ struct MainView: View {
     @StateObject private var history = EnhancementHistory()
     @StateObject private var batchProcessor = BatchProcessor()
     @StateObject private var memoryMonitor = MemoryMonitor.shared
+    @StateObject private var appState = AppState.shared
 
     @State private var originalImage: NSImage?
     @State private var enhancedImage: NSImage?
@@ -72,6 +73,9 @@ struct MainView: View {
     @State private var isBatchMode: Bool = false
     @State private var showingBatchRejectedAlert = false
     @State private var batchRejectedReasons: [String] = []
+
+    // 🎯 Free/Pro 模式
+    @State private var showingUpgradePro = false
 
     // MARK: - Body
     var body: some View {
@@ -118,16 +122,16 @@ struct MainView: View {
         ) { result in
             handleFileImport(result: result)
         }
-        .alert("Error", isPresented: $showingAlert, presenting: errorMessage) { _ in
-            Button("OK") {
+        .alert(L10n.string("alert.error.title"), isPresented: $showingAlert, presenting: errorMessage) { _ in
+            Button(L10n.string("general.ok")) {
                 errorMessage = nil
             }
         } message: { message in
             Text(message)
         }
         // 🎯 優化 14: 大圖片警告對話框
-        .alert("大型圖片警告", isPresented: $showingLargeImageWarning) {
-            Button("繼續處理", role: .destructive) {
+        .alert(L10n.string("alert.large_image.title"), isPresented: $showingLargeImageWarning) {
+            Button(L10n.string("alert.large_image.confirm"), role: .destructive) {
                 if let pending = pendingLargeImage {
                     let cacheKey = pending.url.path
                     ImageCache.shared.set(pending.image, forKey: cacheKey)
@@ -138,24 +142,27 @@ struct MainView: View {
                     pendingLargeImage = nil
                 }
             }
-            Button("取消", role: .cancel) {
+            Button(L10n.string("general.cancel"), role: .cancel) {
                 pendingLargeImage = nil
             }
         } message: {
             if let pending = pendingLargeImage {
                 let width = Int(pending.image.size.width)
                 let height = Int(pending.image.size.height)
-                Text("此圖片尺寸為 \(width) × \(height) 像素，超過建議的 \(Int(maxImageDimension)) × \(Int(maxImageDimension)) 限制。\n\n處理超大圖片可能導致記憶體不足或效能問題。\n\n是否仍要繼續？")
+                Text(L10n.formatted("alert.large_image.message", width, height, Int(maxImageDimension), Int(maxImageDimension)))
             }
         }
         // 🎯 優化 18: 批次檔案被拒絕警告
-        .alert("部分檔案無法加入", isPresented: $showingBatchRejectedAlert) {
-            Button("OK") {
+        .alert(L10n.string("alert.batch_rejected.title"), isPresented: $showingBatchRejectedAlert) {
+            Button(L10n.string("general.ok")) {
                 batchRejectedReasons = []
             }
         } message: {
             if !batchRejectedReasons.isEmpty {
-                Text(batchRejectedReasons.prefix(5).joined(separator: "\n") + (batchRejectedReasons.count > 5 ? "\n... 及其他 \(batchRejectedReasons.count - 5) 個檔案" : ""))
+                let displayed = batchRejectedReasons.prefix(5).joined(separator: "\n")
+                let additional = batchRejectedReasons.count > 5
+                let suffix = additional ? "\n" + L10n.formatted("alert.batch_rejected.more", batchRejectedReasons.count - 5) : ""
+                Text(displayed + suffix)
             }
         }
         // 🎯 優化 2: 鍵盤快捷鍵
@@ -213,6 +220,10 @@ struct MainView: View {
             }
             return .ignored
         })
+        // 🎯 升級 Pro Sheet
+        .sheet(isPresented: $showingUpgradePro) {
+            UpgradeProView(appState: appState)
+        }
     }
 
     // MARK: - Top Toolbar
@@ -239,7 +250,7 @@ struct MainView: View {
             Spacer()
 
             // 🎯 快捷鍵提示
-            Text("⌘O 開啟 • ⌘E 強化 • ⌘C 複製 • ⌘S 儲存 • ⌘Z 撤銷")
+            Text(L10n.string("toolbar.shortcuts"))
                 .font(.system(size: 10))
                 // 🎯 優化 10: 提升深色模式對比度
                 .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.7))
@@ -268,24 +279,74 @@ struct MainView: View {
                     }) {
                         HStack {
                             Image(systemName: "trash")
-                            Text("清除列表")
+                            Text(L10n.string("recent.clear"))
                         }
                     }
                 } label: {
-                    Label("Recent", systemImage: "clock")
+                    Label(L10n.string("recent.menu"), systemImage: "clock")
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             }
 
+            // 🎯 Pro/Free 狀態標示
+            Button(action: {
+                if !appState.isProUnlocked {
+                    showingUpgradePro = true
+                }
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: appState.isProUnlocked ? "crown.fill" : "lock.fill")
+                        .font(.system(size: 11, weight: .semibold))
+
+                    Text(appState.statusText)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: appState.isProUnlocked ? [
+                                    Color(hex: "#667eea"),
+                                    Color(hex: "#764ba2")
+                                ] : [
+                                    Color.orange,
+                                    Color.orange.opacity(0.8)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(
+                            color: (appState.isProUnlocked ? Color(hex: "#667eea") : Color.orange).opacity(0.4),
+                            radius: 6,
+                            y: 2
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .help(appState.isProUnlocked ? "Pro 版本已啟用" : "點擊升級至 Pro 版本")
+
             // 🎯 優化 18: 批次模式切換
             Picker("", selection: $isBatchMode) {
-                Text("單張模式").tag(false)
-                Text("批次模式").tag(true)
+                Text(L10n.string("mode.single")).tag(false)
+                Text(L10n.string("mode.batch")).tag(true)
             }
             .pickerStyle(.segmented)
             .frame(width: 160)
-            .onChange(of: isBatchMode) { _, newValue in
+            .onChange(of: isBatchMode) { oldValue, newValue in
+                // 🎯 檢查批次模式權限
+                if newValue && !appState.canUseBatch {
+                    // Free 用戶無法使用批次模式
+                    isBatchMode = false
+                    showingUpgradePro = true
+                    return
+                }
+
                 if newValue && !batchProcessor.items.isEmpty {
                     // Switching to batch mode - do nothing
                 } else if !newValue {
@@ -298,7 +359,8 @@ struct MainView: View {
 
             // Open Image Button
             Button(action: openImage) {
-                Label(isBatchMode ? "Add Files" : "Open Image", systemImage: isBatchMode ? "plus.rectangle.on.folder.fill" : "folder.fill")
+                Label(isBatchMode ? L10n.string("button.add_files") : L10n.string("button.open_image"),
+                      systemImage: isBatchMode ? "plus.rectangle.on.folder.fill" : "folder.fill")
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
@@ -313,7 +375,7 @@ struct MainView: View {
         VStack(alignment: .leading, spacing: GlassDesign.Spacing.s) {
             // 🎯 優化 17: 現代化標題設計
             VStack(alignment: .leading, spacing: 4) {
-                Text("強化模式")
+                Text(L10n.string("mode.sidebar.title"))
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(
                         LinearGradient(
@@ -323,7 +385,7 @@ struct MainView: View {
                         )
                     )
 
-                Text("選擇適合的 AI 處理模式")
+                Text(L10n.string("mode.sidebar.subtitle"))
                     .font(.system(size: 11))
                     .foregroundColor(.secondary.opacity(0.8))
             }
@@ -419,7 +481,7 @@ struct MainView: View {
             if !isProcessing {
                 VStack {
                     HStack {
-                        Text("雙擊重置 • 捏合縮放 • 拖曳移動")
+                        Text(L10n.string("preview.gesture_hint"))
                             .font(GlassDesign.Typography.caption)
                             .foregroundColor(.white.opacity(0.75))
                             .padding(.horizontal, GlassDesign.Spacing.xs)
@@ -457,16 +519,16 @@ struct MainView: View {
                 .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.5))
 
             VStack(spacing: GlassDesign.Spacing.xxs) {
-                Text("拖曳圖片至此")
+                Text(L10n.string("empty.single.primary"))
                     .font(GlassDesign.Typography.title)
                     .foregroundColor(GlassDesign.Colors.textPrimary)
 
-                Text("或點擊「Open Image」開啟檔案")
+                Text(L10n.formatted("empty.single.secondary", L10n.string("button.open_image")))
                     .font(GlassDesign.Typography.label)
                     .foregroundColor(GlassDesign.Colors.textSecondary)
             }
 
-            Text("支援 \(SupportedImageFormat.supportedFormatsString) 格式")
+            Text(L10n.formatted("empty.supported_formats", SupportedImageFormat.supportedFormatsString))
                 .font(GlassDesign.Typography.caption)
                 .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.7))
                 .padding(.top, GlassDesign.Spacing.xxs)
@@ -496,7 +558,7 @@ struct MainView: View {
 
             // 強化按鈕
             Button(action: enhanceImage) {
-                Label("強化圖片", systemImage: "wand.and.stars")
+                Label(L10n.string("button.enhance"), systemImage: "wand.and.stars")
             }
             .buttonStyle(PrimaryGlassButtonStyle(isEnabled: originalImage != nil && !isProcessing))
             .disabled(originalImage == nil || isProcessing)
@@ -533,7 +595,7 @@ struct MainView: View {
                     .progressViewStyle(.linear)
                     .frame(width: 100)
 
-                Text("處理中 \(Int(processingProgress * 100))%")
+                Text(L10n.formatted("status.processing_progress", Int(processingProgress * 100)))
                     .font(GlassDesign.Typography.label)
                     .foregroundColor(GlassDesign.Colors.textSecondary)
                     .monospacedDigit()
@@ -548,20 +610,20 @@ struct MainView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
                 // 🎯 優化 8: 顯示處理時間
-                Text(processingTime > 0 ? "強化完成 (\(String(format: "%.1f", processingTime))秒)" : "強化完成")
+                Text(processingTime > 0 ? L10n.formatted("status.enhance_complete_with_time", processingTime) : L10n.string("status.enhance_complete"))
                     .font(GlassDesign.Typography.label)
                     .foregroundColor(GlassDesign.Colors.textSecondary)
             } else if originalImage != nil {
                 Image(systemName: "photo.fill")
                     .foregroundColor(.blue)
-                Text("準備強化")
+                Text(L10n.string("status.ready"))
                     .font(GlassDesign.Typography.label)
                     .foregroundColor(GlassDesign.Colors.textSecondary)
             } else {
                 Image(systemName: "arrow.up.doc.fill")
                     // 🎯 優化 10: 提升深色模式對比度
                     .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.6))
-                Text("開啟圖片以開始")
+                Text(L10n.string("status.open_to_start"))
                     .font(GlassDesign.Typography.label)
                     .foregroundColor(GlassDesign.Colors.textSecondary)
             }
@@ -581,23 +643,23 @@ struct MainView: View {
                         .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.5))
 
                     VStack(spacing: GlassDesign.Spacing.xxs) {
-                        Text("拖曳多個圖片至此")
+                        Text(L10n.string("empty.batch.primary"))
                             .font(GlassDesign.Typography.title)
                             .foregroundColor(GlassDesign.Colors.textPrimary)
 
-                        Text("或點擊「Add Files」選擇檔案")
+                        Text(L10n.formatted("empty.batch.secondary", L10n.string("button.add_files")))
                             .font(GlassDesign.Typography.label)
                             .foregroundColor(GlassDesign.Colors.textSecondary)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("批次處理限制：")
+                        Text(L10n.string("batch.limits.title"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(GlassDesign.Colors.textSecondary)
 
-                        Text("• 最多 30 張圖片")
-                        Text("• 單張最大 8192×8192 像素")
-                        Text("• 自動儲存至原檔案目錄")
+                        Text(L10n.string("batch.limits.max_items"))
+                        Text(L10n.formatted("batch.limits.max_resolution", 8192, 8192))
+                        Text(L10n.string("batch.limits.auto_save"))
                     }
                     .font(.system(size: 11))
                     .foregroundColor(GlassDesign.Colors.textSecondary.opacity(0.8))
@@ -634,7 +696,7 @@ struct MainView: View {
                         .fill(memoryPressureColor)
                         .frame(width: 8, height: 8)
 
-                    Text("記憶體: \(Int(memoryMonitor.memoryUsagePercentage))%")
+                    Text(L10n.formatted("status.memory_usage", Int(memoryMonitor.memoryUsagePercentage)))
                         .font(.system(size: 11))
                         .foregroundColor(GlassDesign.Colors.textSecondary)
                 }
@@ -660,14 +722,14 @@ struct MainView: View {
                         Button(action: {
                             batchProcessor.resumeProcessing()
                         }) {
-                            Label("Resume", systemImage: "play.fill")
+                            Label(L10n.string("batch.resume"), systemImage: "play.fill")
                         }
                         .buttonStyle(.bordered)
                     } else {
                         Button(action: {
                             batchProcessor.pauseProcessing()
                         }) {
-                            Label("Pause", systemImage: "pause.fill")
+                            Label(L10n.string("batch.pause"), systemImage: "pause.fill")
                         }
                         .buttonStyle(.bordered)
                     }
@@ -675,14 +737,14 @@ struct MainView: View {
                     Button(action: {
                         batchProcessor.cancelProcessing()
                     }) {
-                        Label("Cancel", systemImage: "xmark.circle.fill")
+                        Label(L10n.string("general.cancel"), systemImage: "xmark.circle.fill")
                     }
                     .buttonStyle(.bordered)
                 } else {
                     Button(action: {
                         batchProcessor.startProcessing()
                     }) {
-                        Label("Start Processing", systemImage: "play.fill")
+                        Label(L10n.string("batch.start"), systemImage: "play.fill")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(batchProcessor.items.isEmpty)
@@ -690,7 +752,7 @@ struct MainView: View {
                     Button(action: {
                         batchProcessor.clearQueue()
                     }) {
-                        Label("Clear", systemImage: "trash")
+                        Label(L10n.string("batch.clear"), systemImage: "trash")
                     }
                     .buttonStyle(.bordered)
                     .disabled(batchProcessor.items.isEmpty)
@@ -806,7 +868,7 @@ struct MainView: View {
         HStack(spacing: GlassDesign.Spacing.xs) {
             // 格式選擇
             HStack(spacing: GlassDesign.Spacing.xxs) {
-                Text("格式:")
+                Text(L10n.string("export.format"))
                     .font(GlassDesign.Typography.label)
                     .foregroundColor(GlassDesign.Colors.textSecondary)
 
@@ -823,7 +885,7 @@ struct MainView: View {
             // 🎯 優化 16: JPEG 品質滑桿
             if selectedExportFormat == .jpeg {
                 HStack(spacing: GlassDesign.Spacing.xxs) {
-                    Text("品質:")
+                    Text(L10n.string("export.quality"))
                         .font(GlassDesign.Typography.label)
                         .foregroundColor(GlassDesign.Colors.textSecondary)
 
@@ -841,17 +903,17 @@ struct MainView: View {
 
             // 🎯 優化 15: 複製按鈕
             Button(action: copyToClipboard) {
-                Label("Copy", systemImage: "doc.on.doc.fill")
+                Label(L10n.string("button.copy"), systemImage: "doc.on.doc.fill")
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
             .disabled(enhancedImage == nil || isProcessing)
             .keyboardShortcut("c", modifiers: .command)
-            .help("複製強化後的圖片到剪貼簿 (⌘C)")
+            .help(L10n.string("help.copy"))
 
             // Save As 按鈕
             Button(action: saveImage) {
-                Label("Save As...", systemImage: "square.and.arrow.down.fill")
+                Label(L10n.string("button.save"), systemImage: "square.and.arrow.down.fill")
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
@@ -901,7 +963,7 @@ struct MainView: View {
                 _ = provider.loadObject(ofClass: URL.self) { url, error in
                     if let error = error {
                         DispatchQueue.main.async {
-                            self.errorMessage = "Drop failed: \(error.localizedDescription)"
+                            self.errorMessage = L10n.formatted("error.drop_failed", error.localizedDescription)
                             self.showingAlert = true
                         }
                         return
@@ -913,7 +975,7 @@ struct MainView: View {
 
                     guard SupportedImageFormat.allExtensions.contains(fileExtension) else {
                         DispatchQueue.main.async {
-                            self.errorMessage = "不支援的檔案格式。請使用 \(SupportedImageFormat.supportedFormatsString)。"
+                            self.errorMessage = L10n.formatted("error.unsupported_format", SupportedImageFormat.supportedFormatsString)
                             self.showingAlert = true
                         }
                         return
@@ -947,7 +1009,7 @@ struct MainView: View {
             }
 
         case .failure(let error):
-            errorMessage = "Failed to open file: \(error.localizedDescription)"
+            errorMessage = L10n.formatted("error.open_failed", error.localizedDescription)
             showingAlert = true
         }
     }
@@ -979,7 +1041,7 @@ struct MainView: View {
 
         do {
             guard FileManager.default.fileExists(atPath: url.path) else {
-                errorMessage = "File not found: \(url.lastPathComponent)"
+                errorMessage = L10n.formatted("error.file_not_found", url.lastPathComponent)
                 showingAlert = true
                 return
             }
@@ -990,7 +1052,7 @@ struct MainView: View {
                 // Fallback to NSImage
                 let data = try Data(contentsOf: url)
                 guard let image = NSImage(data: data) else {
-                    errorMessage = "Invalid image format or corrupted file"
+                    errorMessage = L10n.string("error.invalid_image")
                     showingAlert = true
                     return
                 }
@@ -1034,13 +1096,22 @@ struct MainView: View {
             recentFiles.addRecentFile(url)
 
         } catch {
-            errorMessage = "Failed to load image: \(error.localizedDescription)"
+            errorMessage = L10n.formatted("error.load_failed", error.localizedDescription)
             showingAlert = true
         }
     }
 
     private func enhanceImage() {
         guard let original = originalImage else { return }
+
+        // 🎯 檢查強化權限（Free 模式次數檢查）
+        guard appState.canEnhance else {
+            showingUpgradePro = true
+            return
+        }
+
+        // 🎯 消耗 Free 次數（Pro 用戶不消耗）
+        appState.consumeFreeEnhance()
 
         isProcessing = true
         errorMessage = nil
@@ -1122,7 +1193,7 @@ struct MainView: View {
             pasteboard.setData(tiffData, forType: .tiff)
             print("✅ Image copied to clipboard")
         } else {
-            errorMessage = "Failed to copy image"
+            errorMessage = L10n.string("error.copy_failed")
             showingAlert = true
         }
     }
@@ -1130,14 +1201,17 @@ struct MainView: View {
     private func saveImage() {
         guard let enhanced = enhancedImage else { return }
 
+        // 🎯 Free 模式解析度限制
+        let imageToSave = appState.applyResolutionLimit(to: enhanced)
+
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [selectedExportFormat.contentType]
         savePanel.canCreateDirectories = true
         savePanel.isExtensionHidden = false
         savePanel.allowsOtherFileTypes = false
-        savePanel.title = "Save Enhanced Image"
+        savePanel.title = L10n.string("save.panel.title")
 
-        let defaultFileName = originalFileName.isEmpty ? "image" : originalFileName
+        let defaultFileName = originalFileName.isEmpty ? L10n.string("save.default_name") : originalFileName
         // 🎯 優化 9: 根據模式添加智慧後綴
         let modeSuffix = service.currentMode.filenameSuffix
         savePanel.nameFieldStringValue = "\(defaultFileName)\(modeSuffix).\(selectedExportFormat.fileExtension)"
@@ -1146,10 +1220,10 @@ struct MainView: View {
             guard response == .OK, let url = savePanel.url else { return }
 
             DispatchQueue.global(qos: .userInitiated).async {
-                guard let tiffData = enhanced.tiffRepresentation,
+                guard let tiffData = imageToSave.tiffRepresentation,
                       let bitmapImage = NSBitmapImageRep(data: tiffData) else {
                     DispatchQueue.main.async {
-                        self.errorMessage = "Failed to convert image"
+                        self.errorMessage = L10n.string("error.convert_failed")
                         self.showingAlert = true
                     }
                     return
@@ -1166,7 +1240,7 @@ struct MainView: View {
 
                 guard let data = imageData else {
                     DispatchQueue.main.async {
-                        self.errorMessage = "Failed to encode image"
+                        self.errorMessage = L10n.string("error.encode_failed")
                         self.showingAlert = true
                     }
                     return
@@ -1177,7 +1251,7 @@ struct MainView: View {
                     print("✅ Image saved: \(url.lastPathComponent)")
                 } catch {
                     DispatchQueue.main.async {
-                        self.errorMessage = "Failed to save: \(error.localizedDescription)"
+                        self.errorMessage = L10n.formatted("error.save_failed", error.localizedDescription)
                         self.showingAlert = true
                     }
                 }

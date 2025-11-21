@@ -55,15 +55,15 @@ class BatchItem: Identifiable, ObservableObject {
     var statusText: String {
         switch status {
         case .pending:
-            return "等待中"
+            return L10n.string("batch.status.pending")
         case .processing:
-            return "處理中"
+            return L10n.string("batch.status.processing")
         case .completed:
-            return "完成"
+            return L10n.string("batch.status.completed")
         case .failed:
-            return "失敗"
+            return L10n.string("batch.status.failed")
         case .cancelled:
-            return "已取消"
+            return L10n.string("batch.status.cancelled")
         }
     }
 }
@@ -110,20 +110,20 @@ class BatchProcessor: ObservableObject {
         for url in urls {
             // 檢查佇列大小
             guard items.count < maxQueueSize else {
-                rejectedReasons.append("\(url.lastPathComponent): 佇列已滿（最多 \(maxQueueSize) 個）")
+                rejectedReasons.append(L10n.formatted("batch.error.queue_full", url.lastPathComponent, maxQueueSize))
                 continue
             }
 
             // 檢查檔案格式（使用統一的格式定義）
             let fileExtension = url.pathExtension.lowercased()
             guard SupportedImageFormat.allExtensions.contains(fileExtension) else {
-                rejectedReasons.append("\(url.lastPathComponent): 不支援的檔案格式")
+                rejectedReasons.append(L10n.formatted("batch.error.unsupported_format", url.lastPathComponent))
                 continue
             }
 
             // 檢查檔案是否已在佇列中
             if items.contains(where: { $0.url.path == url.path }) {
-                rejectedReasons.append("\(url.lastPathComponent): 已在佇列中")
+                rejectedReasons.append(L10n.formatted("batch.error.duplicate", url.lastPathComponent))
                 continue
             }
 
@@ -134,7 +134,16 @@ class BatchProcessor: ObservableObject {
                let height = properties[kCGImagePropertyPixelHeight] as? CGFloat {
 
                 if width > maxImageDimension || height > maxImageDimension {
-                    rejectedReasons.append("\(url.lastPathComponent): 尺寸過大（\(Int(width))×\(Int(height))，限制 \(Int(maxImageDimension))×\(Int(maxImageDimension))）")
+                    rejectedReasons.append(
+                        L10n.formatted(
+                            "batch.error.size_limit",
+                            url.lastPathComponent,
+                            Int(width),
+                            Int(height),
+                            Int(maxImageDimension),
+                            Int(maxImageDimension)
+                        )
+                    )
                     continue
                 }
             }
@@ -309,7 +318,11 @@ class BatchProcessor: ObservableObject {
         do {
             // Load image
             guard let image = NSImage(contentsOf: item.url) else {
-                throw NSError(domain: "BatchProcessor", code: 1, userInfo: [NSLocalizedDescriptionKey: "無法載入圖片"])
+                throw NSError(
+                    domain: "BatchProcessor",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: L10n.string("batch.error.image_load")]
+                )
             }
 
             await MainActor.run {
@@ -354,7 +367,11 @@ class BatchProcessor: ObservableObject {
     /// 儲存強化後的圖片
     private func saveEnhancedImage(_ item: BatchItem) async throws {
         guard let enhanced = item.enhancedImage else {
-            throw NSError(domain: "BatchProcessor", code: 2, userInfo: [NSLocalizedDescriptionKey: "無強化圖片"])
+            throw NSError(
+                domain: "BatchProcessor",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: L10n.string("batch.error.no_enhanced_image")]
+            )
         }
 
         // Generate output filename
@@ -370,7 +387,11 @@ class BatchProcessor: ObservableObject {
         // Convert NSImage to data
         guard let tiffData = enhanced.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiffData) else {
-            throw NSError(domain: "BatchProcessor", code: 3, userInfo: [NSLocalizedDescriptionKey: "無法轉換圖片格式"])
+            throw NSError(
+                domain: "BatchProcessor",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: L10n.string("batch.error.convert_failed")]
+            )
         }
 
         // 根據原始格式選擇輸出格式和品質
@@ -396,7 +417,11 @@ class BatchProcessor: ObservableObject {
         }
 
         guard let data = imageData else {
-            throw NSError(domain: "BatchProcessor", code: 4, userInfo: [NSLocalizedDescriptionKey: "無法產生圖片資料"])
+            throw NSError(
+                domain: "BatchProcessor",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: L10n.string("batch.error.encode_failed")]
+            )
         }
 
         // Write to file

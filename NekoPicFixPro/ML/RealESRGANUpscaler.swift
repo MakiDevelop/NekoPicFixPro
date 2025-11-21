@@ -17,6 +17,8 @@ class RealESRGANUpscaler: ImageUpscaler {
     private let config: MLModelConfiguration
     private let inputName: String
     private let outputName: String
+    private static let modelDisplayName = L10n.string("mode.general.name")
+    private static let modelFileIdentifier = "realesrgan512.mlmodel"
 
     // MARK: - Constants
     private let inputSize = 512
@@ -33,13 +35,13 @@ class RealESRGANUpscaler: ImageUpscaler {
         var errorDescription: String? {
             switch self {
             case .modelNotFound:
-                return "realesrgan512.mlmodel 未找到"
+                return L10n.formatted("ml.error.model_not_found", RealESRGANUpscaler.modelDisplayName, RealESRGANUpscaler.modelFileIdentifier)
             case .conversionFailed:
-                return "圖片轉換失敗"
+                return L10n.string("ml.error.conversion_failed")
             case .predictionFailed(let detail):
-                return "模型推論失敗: \(detail)"
+                return L10n.formatted("ml.error.prediction_failed", detail)
             case .modelConfigurationError(let detail):
-                return "模型配置錯誤: \(detail)"
+                return L10n.formatted("ml.error.configuration_failed", detail)
             }
         }
     }
@@ -72,7 +74,7 @@ class RealESRGANUpscaler: ImageUpscaler {
         let modelDescription = model.modelDescription
         guard let firstInput = modelDescription.inputDescriptionsByName.first?.key,
               let firstOutput = modelDescription.outputDescriptionsByName.first?.key else {
-            throw UpscalerError.modelConfigurationError("無法取得模型輸入/輸出特徵名稱")
+            throw UpscalerError.modelConfigurationError(L10n.string("ml.error.missing_features"))
         }
 
         inputName = firstInput
@@ -132,7 +134,7 @@ class RealESRGANUpscaler: ImageUpscaler {
 
         guard let outputFeature = prediction.featureValue(for: outputName),
               let outputBuffer = outputFeature.imageBufferValue else {
-            throw UpscalerError.predictionFailed("無法取得輸出")
+            throw UpscalerError.predictionFailed(L10n.string("ml.error.no_output"))
         }
 
         return outputBuffer

@@ -205,7 +205,7 @@ struct BeforeAfterSliderView: View {
     private var labelOverlay: some View {
         HStack {
             // Before Label
-            Text("Before")
+            Text(L10n.string("comparison.before"))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.primary)  // 自動適配深淺模式
                 .padding(.horizontal, 12)
@@ -225,7 +225,7 @@ struct BeforeAfterSliderView: View {
             Spacer()
 
             // After Label
-            Text("After")
+            Text(L10n.string("comparison.after"))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.primary)  // 自動適配深淺模式
                 .padding(.horizontal, 12)

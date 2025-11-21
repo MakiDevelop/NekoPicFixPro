@@ -14,6 +14,10 @@ struct ImagePanel: View {
     let image: NSImage?
     let isProcessing: Bool
 
+    private var isOriginalPanel: Bool {
+        title == L10n.string("panel.original.title")
+    }
+
     // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
@@ -48,7 +52,7 @@ struct ImagePanel: View {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.5)
-                        Text("Processing...")
+                        Text(L10n.string("status.processing"))
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
@@ -64,20 +68,20 @@ struct ImagePanel: View {
                 } else {
                     // Empty State
                     VStack(spacing: 12) {
-                        Image(systemName: title == "Original" ? "photo.on.rectangle.angled" : "sparkles")
+                        Image(systemName: isOriginalPanel ? "photo.on.rectangle.angled" : "sparkles")
                             .font(.system(size: 48))
                             .foregroundColor(.secondary.opacity(0.5))
 
-                        Text(title == "Original" ? "No Image Loaded" : "Waiting for Enhancement")
+                        Text(isOriginalPanel ? L10n.string("panel.empty.no_image") : L10n.string("panel.empty.waiting"))
                             .font(.title3)
                             .foregroundColor(.secondary)
 
-                        if title == "Original" {
+                        if isOriginalPanel {
                             VStack(spacing: 4) {
-                                Text("Drag & drop an image here")
+                                Text(L10n.string("panel.empty.drag"))
                                     .font(.callout)
                                     .foregroundColor(.secondary.opacity(0.7))
-                                Text("or click 'Open Image'")
+                                Text(L10n.formatted("panel.empty.or_click", L10n.string("button.open_image")))
                                     .font(.caption)
                                     .foregroundColor(.secondary.opacity(0.5))
                             }
@@ -92,7 +96,7 @@ struct ImagePanel: View {
 // MARK: - Preview
 #Preview("With Image") {
     ImagePanel(
-        title: "Original",
+        title: L10n.string("panel.original.title"),
         image: NSImage(systemSymbolName: "photo", accessibilityDescription: nil),
         isProcessing: false
     )
@@ -101,7 +105,7 @@ struct ImagePanel: View {
 
 #Preview("Processing") {
     ImagePanel(
-        title: "Enhanced",
+        title: L10n.string("panel.enhanced.title"),
         image: nil,
         isProcessing: true
     )
@@ -110,7 +114,7 @@ struct ImagePanel: View {
 
 #Preview("Empty") {
     ImagePanel(
-        title: "Original",
+        title: L10n.string("panel.original.title"),
         image: nil,
         isProcessing: false
     )

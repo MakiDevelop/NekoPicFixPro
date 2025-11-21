@@ -18,18 +18,33 @@ enum EnhancementMode: String, CaseIterable {
     case anime = "插畫模式"
     case experimental = "實驗模式"
 
+    var displayName: String {
+        switch self {
+        case .general:
+            return L10n.string("mode.general.name")
+        case .naturalStrong:
+            return L10n.string("mode.naturalStrong.name")
+        case .naturalSoft:
+            return L10n.string("mode.naturalSoft.name")
+        case .anime:
+            return L10n.string("mode.anime.name")
+        case .experimental:
+            return L10n.string("mode.experimental.name")
+        }
+    }
+
     var description: String {
         switch self {
         case .general:
-            return "一般照片最佳，風景、建築、物品、人物都通用"
+            return L10n.string("mode.general.description")
         case .naturalStrong:
-            return "自然照片修復，效果較強"
+            return L10n.string("mode.naturalStrong.description")
         case .naturalSoft:
-            return "自然照片修復，效果較柔和"
+            return L10n.string("mode.naturalSoft.description")
         case .anime:
-            return "適合漫畫、動漫、二次元、遊戲截圖、手繪線稿"
+            return L10n.string("mode.anime.description")
         case .experimental:
-            return "進階使用者使用，畫面較銳利，可能產生 artifacts"
+            return L10n.string("mode.experimental.description")
         }
     }
 
@@ -108,9 +123,9 @@ class ImageEnhancementService: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .modelNotInitialized(let mode):
-                return "模型「\(mode.rawValue)」未初始化"
+                return L10n.formatted("error.model_not_initialized", mode.displayName)
             case .enhancementFailed(let error):
-                return "強化失敗: \(error.localizedDescription)"
+                return L10n.formatted("error.enhancement_failed", error.localizedDescription)
             }
         }
     }

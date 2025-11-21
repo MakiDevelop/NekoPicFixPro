@@ -44,12 +44,12 @@ enum SupportedImageFormat: String, CaseIterable {
     /// 格式描述
     var description: String {
         switch self {
-        case .jpeg: return "JPEG 圖片"
-        case .png: return "PNG 圖片"
-        case .heic: return "HEIC 圖片"
-        case .bmp: return "BMP 點陣圖"
-        case .tiff: return "TIFF 圖片"
-        case .webp: return "WebP 圖片"
+        case .jpeg: return L10n.string("format.jpeg.description")
+        case .png: return L10n.string("format.png.description")
+        case .heic: return L10n.string("format.heic.description")
+        case .bmp: return L10n.string("format.bmp.description")
+        case .tiff: return L10n.string("format.tiff.description")
+        case .webp: return L10n.string("format.webp.description")
         }
     }
 
@@ -71,6 +71,7 @@ enum SupportedImageFormat: String, CaseIterable {
 
     /// 支援格式的友善字串（用於顯示）
     static var supportedFormatsString: String {
-        allCases.map { $0.rawValue }.joined(separator: "、")
+        let separator = L10n.string("format.separator")
+        return allCases.map { $0.rawValue }.joined(separator: separator)
     }
 }

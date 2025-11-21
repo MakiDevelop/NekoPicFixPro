@@ -24,6 +24,8 @@ class RealESRGAN4xUpscaler: ImageUpscaler {
     /// Model input and output feature names (detected dynamically)
     private let inputName: String
     private let outputName: String
+    private static let modelDisplayName = L10n.string("mode.general.name")
+    private static let modelFileIdentifier = "realesrgan512.mlmodel"
 
     // MARK: - Constants
 
@@ -43,15 +45,15 @@ class RealESRGAN4xUpscaler: ImageUpscaler {
         var errorDescription: String? {
             switch self {
             case .modelNotFound:
-                return "realesrgan512.mlmodel not found. Please ensure the model is added to the Xcode project target."
+                return L10n.formatted("ml.error.model_not_found", RealESRGAN4xUpscaler.modelDisplayName, RealESRGAN4xUpscaler.modelFileIdentifier)
             case .invalidInput:
-                return "Invalid input image"
+                return L10n.string("ml.error.invalid_input")
             case .predictionFailed(let detail):
-                return "Model prediction failed: \(detail)"
+                return L10n.formatted("ml.error.prediction_failed", detail)
             case .conversionFailed:
-                return "Failed to convert image"
+                return L10n.string("ml.error.conversion_failed")
             case .modelConfigurationError(let detail):
-                return "Model configuration error: \(detail)"
+                return L10n.formatted("ml.error.configuration_failed", detail)
             }
         }
     }
@@ -73,7 +75,9 @@ class RealESRGAN4xUpscaler: ImageUpscaler {
                 print("✅ Model loaded successfully from .mlmodelc")
             } catch {
                 print("❌ Failed to load .mlmodelc: \(error.localizedDescription)")
-                throw UpscalerError.modelConfigurationError("Failed to load compiled model: \(error.localizedDescription)")
+                throw UpscalerError.modelConfigurationError(
+                    L10n.formatted("ml.error.compiled_model_failed", error.localizedDescription)
+                )
             }
         }
         // Fallback: Try to compile from .mlmodel file
@@ -113,10 +117,10 @@ class RealESRGAN4xUpscaler: ImageUpscaler {
 
             // Get the first input and output feature names
             guard let firstInput = modelDescription.inputDescriptionsByName.first?.key else {
-                throw UpscalerError.modelConfigurationError("No input features found")
+                throw UpscalerError.modelConfigurationError(L10n.string("ml.error.no_input_features"))
             }
             guard let firstOutput = modelDescription.outputDescriptionsByName.first?.key else {
-                throw UpscalerError.modelConfigurationError("No output features found")
+                throw UpscalerError.modelConfigurationError(L10n.string("ml.error.no_output_features"))
             }
 
             inputName = firstInput
@@ -203,7 +207,9 @@ class RealESRGAN4xUpscaler: ImageUpscaler {
                 inputName: MLFeatureValue(pixelBuffer: inputBuffer)
             ])
         } catch {
-            throw UpscalerError.predictionFailed("Failed to create input feature: \(error.localizedDescription)")
+            throw UpscalerError.predictionFailed(
+                L10n.formatted("ml.error.create_input_feature_failed", error.localizedDescription)
+            )
         }
 
         // Perform prediction
@@ -211,16 +217,20 @@ class RealESRGAN4xUpscaler: ImageUpscaler {
         do {
             prediction = try model.prediction(from: inputFeature)
         } catch {
-            throw UpscalerError.predictionFailed("Prediction failed: \(error.localizedDescription)")
+            throw UpscalerError.predictionFailed(
+                L10n.formatted("ml.error.prediction_runtime_failed", error.localizedDescription)
+            )
         }
 
         // Extract output using the dynamically detected output name
         guard let outputFeature = prediction.featureValue(for: outputName) else {
-            throw UpscalerError.predictionFailed("Output feature '\(outputName)' not found")
+            throw UpscalerError.predictionFailed(
+                L10n.formatted("ml.error.output_not_found", outputName)
+            )
         }
 
         guard let outputBuffer = outputFeature.imageBufferValue else {
-            throw UpscalerError.predictionFailed("Output feature is not an image buffer")
+            throw UpscalerError.predictionFailed(L10n.string("ml.error.output_not_image"))
         }
 
         return outputBuffer
