@@ -114,9 +114,9 @@ class BatchProcessor: ObservableObject {
                 continue
             }
 
-            // 檢查檔案格式
-            let supportedExtensions = ["png", "jpg", "jpeg", "tiff", "tif", "bmp", "gif"]
-            guard supportedExtensions.contains(url.pathExtension.lowercased()) else {
+            // 檢查檔案格式（使用統一的格式定義）
+            let fileExtension = url.pathExtension.lowercased()
+            guard SupportedImageFormat.allExtensions.contains(fileExtension) else {
                 rejectedReasons.append("\(url.lastPathComponent): 不支援的檔案格式")
                 continue
             }
@@ -373,13 +373,34 @@ class BatchProcessor: ObservableObject {
             throw NSError(domain: "BatchProcessor", code: 3, userInfo: [NSLocalizedDescriptionKey: "無法轉換圖片格式"])
         }
 
-        // Save as PNG (lossless for batch processing)
-        guard let imageData = bitmap.representation(using: .png, properties: [:]) else {
-            throw NSError(domain: "BatchProcessor", code: 4, userInfo: [NSLocalizedDescriptionKey: "無法產生 PNG 資料"])
+        // 根據原始格式選擇輸出格式和品質
+        let imageData: Data?
+        let originalExt = fileURL.pathExtension.lowercased()
+
+        switch originalExt {
+        case "jpg", "jpeg":
+            // JPEG：使用 85% 品質（平衡品質與檔案大小）
+            imageData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+
+        case "webp":
+            // WebP 來源：轉為 JPEG 85%（因為 NSBitmapImageRep 不直接支援 WebP 寫入）
+            imageData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+
+        case "png", "heic", "heif", "bmp", "tiff", "tif":
+            // 無損格式：保持 PNG
+            imageData = bitmap.representation(using: .png, properties: [:])
+
+        default:
+            // 預設使用 JPEG 85%
+            imageData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+        }
+
+        guard let data = imageData else {
+            throw NSError(domain: "BatchProcessor", code: 4, userInfo: [NSLocalizedDescriptionKey: "無法產生圖片資料"])
         }
 
         // Write to file
-        try imageData.write(to: outputURL)
+        try data.write(to: outputURL)
 
         print("💾 Saved: \(outputFilename)")
     }
