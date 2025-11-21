@@ -1,0 +1,9 @@
+Product:
+  Type: Non-Consumable
+  Reference Name: NekoPicFix Pro Unlock
+  Product ID: tw.maki.NekoPicFixPro.unlock
+  Price: $9.99
+  Localizations:
+      English (US):
+          Display Name: Unlock NekoPicFix Pro
+          Description: Unlock all features and remove Free mode limitations.

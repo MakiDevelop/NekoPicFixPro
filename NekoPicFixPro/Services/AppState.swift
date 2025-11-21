@@ -75,9 +75,9 @@ class AppState: ObservableObject {
         // 🐛 Debug: 重置 UserDefaults（僅在需要時取消註解）
         #if DEBUG
         // ⚠️ 取消註解以重置 Free/Pro 設定
-        //UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.isProUnlocked)
-        //UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.remainingFreeEnhances)
-        //print("🔄 DEBUG: UserDefaults reset")
+        UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.isProUnlocked)
+        UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.remainingFreeEnhances)
+        print("🔄 DEBUG: UserDefaults reset")
         #endif
 
         // 從 UserDefaults 載入
