@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>About NekoPicFix Pro</title>
+<style>
+:root {
+  --bg: #0d0f12;
+  --panel: rgba(255,255,255,0.08);
+  --glow: 0 0 25px rgba(0,180,255,0.45);
+  --border: rgba(255,255,255,0.12);
+  --text: #e8e8e8;
+  --accent: #4dc4ff;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 40px;
+  line-height: 1.7;
+}
+.container {
+  max-width: 900px;
+  margin: auto;
+  background: var(--panel);
+  padding: 40px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--glow);
+  backdrop-filter: blur(16px);
+}
+h1 { font-size: 34px; font-weight: 600; color: var(--accent); }
+h2 { font-size: 22px; margin-top: 40px; color: var(--accent);
+     border-left: 4px solid var(--accent); padding-left: 10px;}
+.lang-switch { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+.lang-switch button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.25s;
+}
+.lang-switch button:hover {
+  background: var(--accent);
+  color: #000;
+}
+a { color: var(--accent); }
+</style>
+
+<script>
+function showLang(lang) {
+  document.querySelectorAll('.lang-block').forEach(b => b.style.display = 'none');
+  document.getElementById(lang).style.display = 'block';
+}
+window.onload = () => {
+  const lang = navigator.language || navigator.userLanguage;
+  const map = {
+    'zh':'zh', 'zh-TW':'zh', 'zh-HK':'zh', 'zh-Hant':'zh',
+    'ja':'jp',
+    'ko':'kr',
+    'de':'de',
+    'fr':'fr',
+    'es':'es',
+    'it':'it',
+    'pt-BR':'ptbr',
+    'pt':'pt',
+    'id':'id'
+  };
+  let chosen = 'en';
+  Object.keys(map).forEach(k => { if(lang.startsWith(k)) chosen = map[k]; });
+  showLang(chosen);
+};
+</script>
+</head>
+<body>
+<div class="container">
+<h1>About NekoPicFix Pro</h1>
+
+<div class="lang-switch">
+  <button onclick="showLang('en')">English</button>
+  <button onclick="showLang('zh')">中文</button>
+  <button onclick="showLang('jp')">日本語</button>
+  <button onclick="showLang('kr')">한국어</button>
+  <button onclick="showLang('de')">Deutsch</button>
+  <button onclick="showLang('fr')">Français</button>
+  <button onclick="showLang('es')">Español</button>
+  <button onclick="showLang('it')">Italiano</button>
+  <button onclick="showLang('pt')">Português</button>
+  <button onclick="showLang('ptbr')">Português (BR)</button>
+  <button onclick="showLang('id')">Bahasa Indonesia</button>
+</div>
+
+<section id="en" class="lang-block">
+<h2>English</h2>
+<p>NekoPicFix Pro is a lightweight, privacy-friendly on-device AI image enhancement tool crafted by an independent developer.</p>
+<p>Developer: 江中喬（Maki）</p>
+<p>Contact: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="zh" class="lang-block">
+<h2>繁體中文</h2>
+<p>NekoPicFix Pro 是一款由獨立開發者打造的 macOS 本機端 AI 圖片強化工具，重視隱私、不依賴雲端。</p>
+<p>開發者：江中喬（Maki）</p>
+<p>聯絡方式：<a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="jp" class="lang-block">
+<h2>日本語</h2>
+<p>NekoPicFix Pro は独立開発者による macOS 向けローカル AI 画像強化ツールです。</p>
+<p>開発者：江中喬（Maki）</p>
+<p>連絡先：<a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="kr" class="lang-block">
+<h2>한국어</h2>
+<p>NekoPicFix Pro 는 독립 개발자가 만든 macOS 전용 로컬 AI 이미지 향상 도구입니다.</p>
+<p>개발자: 江中喬（Maki）</p>
+<p>연락처: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="de" class="lang-block">
+<h2>Deutsch</h2>
+<p>NekoPicFix Pro ist ein leichtes, datenschutzfreundliches KI-Bildverbesserungstool für macOS, entwickelt von einem unabhängigen Entwickler.</p>
+<p>Entwickler: 江中喬（Maki）</p>
+<p>Kontakt: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="fr" class="lang-block">
+<h2>Français</h2>
+<p>NekoPicFix Pro est un outil léger et respectueux de la vie privée pour améliorer les images via IA sur macOS, créé par un développeur indépendant.</p>
+<p>Développeur : 江中喬（Maki）</p>
+<p>Contact : <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="es" class="lang-block">
+<h2>Español</h2>
+<p>NekoPicFix Pro es una herramienta ligera y respetuosa con la privacidad para mejorar imágenes con IA en macOS, creada por un desarrollador independiente.</p>
+<p>Desarrollador: 江中喬（Maki）</p>
+<p>Contacto: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="it" class="lang-block">
+<h2>Italiano</h2>
+<p>NekoPicFix Pro è uno strumento leggero e attento alla privacy per il miglioramento delle immagini con IA su macOS, creato da uno sviluppatore indipendente.</p>
+<p>Sviluppatore: 江中喬（Maki）</p>
+<p>Contatto: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="pt" class="lang-block">
+<h2>Português (PT)</h2>
+<p>NekoPicFix Pro é uma ferramenta leve e focada na privacidade para melhorar imagens com IA no macOS, criada por um programador independente.</p>
+<p>Programador: 江中喬（Maki）</p>
+<p>Contato: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="ptbr" class="lang-block">
+<h2>Português (BR)</h2>
+<p>NekoPicFix Pro é uma ferramenta leve e voltada à privacidade para aprimorar imagens com IA no macOS, criada por um desenvolvedor independente.</p>
+<p>Desenvolvedor: 江中喬（Maki）</p>
+<p>Contato: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+<section id="id" class="lang-block">
+<h2>Bahasa Indonesia</h2>
+<p>NekoPicFix Pro adalah alat peningkat gambar berbasis AI untuk macOS — ringan, menjaga privasi, dan dibuat oleh seorang pengembang independen.</p>
+<p>Pengembang: 江中喬（Maki）</p>
+<p>Kontak: <a href="mailto:makiakatsu@gmail.com">makiakatsu@gmail.com</a></p>
+</section>
+
+</div>
+</body>
+</html>
